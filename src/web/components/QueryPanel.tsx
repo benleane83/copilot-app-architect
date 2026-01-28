@@ -38,7 +38,11 @@ export function QueryPanel({
 
   // Auto-scroll to bottom when chat history changes
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Respect user's preference for reduced motion
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    chatEndRef.current?.scrollIntoView({ 
+      behavior: prefersReducedMotion ? 'auto' : 'smooth' 
+    });
   }, [chatHistory]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {

@@ -135,16 +135,12 @@ export function DashboardPage() {
     setChatHistory(prev => [...prev, userMessage]);
     
     try {
-      const body: any = {
+      const body = {
         graphId: selectedGraphId,
         question,
         selectedNodes,
+        ...(sessionId && { sessionId }),
       };
-      
-      // Only include sessionId if it's not null
-      if (sessionId) {
-        body.sessionId = sessionId;
-      }
       
       const res = await fetch(`${API_BASE}/ask`, {
         method: 'POST',

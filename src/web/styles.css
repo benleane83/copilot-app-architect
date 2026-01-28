@@ -172,7 +172,7 @@ body {
   padding: 16px;
   display: flex;
   flex-direction: column;
-  max-height: 60vh; /* Make it more expandable */
+  max-height: 60vh; /* Limit panel height to 60% of viewport for better space management */
   overflow: hidden;
 }
 
