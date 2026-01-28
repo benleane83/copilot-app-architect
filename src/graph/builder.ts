@@ -87,21 +87,8 @@ function createNode(id: string, depType: string): GraphNode {
  * Extract a human-readable name from a node ID
  */
 function extractNodeName(id: string): string {
-  // Handle Kubernetes format: Kind/name
-  if (id.includes('/')) {
-    return id.split('/').pop() || id;
-  }
-  
-  // Handle Terraform format: type.name
-  if (id.includes('.')) {
-    return id.split('.').pop() || id;
-  }
-  
-  // Handle team/owner format: @org/team
-  if (id.startsWith('@')) {
-    return id;
-  }
-  
+  // Return the full ID to show complete node names
+  // (e.g., azurerm_monitor_data_collection_endpoint.example_msprom instead of just example_msprom)
   return id;
 }
 

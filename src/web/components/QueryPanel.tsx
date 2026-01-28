@@ -1,7 +1,12 @@
 /**
  * Query Panel component - input for asking questions about the graph
  */
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+}
 
 interface QueryPanelProps {
   selectedNodes: string[];
@@ -9,6 +14,7 @@ interface QueryPanelProps {
   response: string | null;
   isLoading: boolean;
   graphId: string | null;
+  chatHistory?: Message[];
 }
 
 // Pre-fill question templates
@@ -25,13 +31,21 @@ export function QueryPanel({
   response,
   isLoading,
   graphId,
+  chatHistory = [],
 }: QueryPanelProps) {
   const [question, setQuestion] = useState('');
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when chat history changes
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatHistory]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!question.trim() || isLoading) return;
     await onAsk(question);
+    setQuestion(''); // Clear input after sending
   }, [question, onAsk, isLoading]);
 
   const handleTemplateClick = useCallback((template: typeof questionTemplates[0]) => {
@@ -56,6 +70,7 @@ export function QueryPanel({
       e.preventDefault();
       if (question.trim() && !isLoading) {
         onAsk(question);
+        setQuestion(''); // Clear input after sending
       }
     }
   }, [question, onAsk, isLoading]);
@@ -91,6 +106,27 @@ export function QueryPanel({
         </div>
       )}
 
+      {/* Chat history */}
+      {chatHistory.length > 0 && (
+        <div className="chat-history">
+          {chatHistory.map((msg, idx) => (
+            <div key={idx} className={`chat-message ${msg.role}`}>
+              <div className="chat-message-role">
+                {msg.role === 'user' ? '👤 You' : '🤖 Assistant'}
+              </div>
+              <div className="chat-message-content">
+                {msg.role === 'assistant' ? (
+                  <ResponseContent content={msg.content} />
+                ) : (
+                  msg.content
+                )}
+              </div>
+            </div>
+          ))}
+          <div ref={chatEndRef} />
+        </div>
+      )}
+
       {/* Input form */}
       <form onSubmit={handleSubmit} className="query-input-container">
         <input
@@ -111,8 +147,8 @@ export function QueryPanel({
         </button>
       </form>
 
-      {/* Response area */}
-      {response && (
+      {/* Backward compatibility: show latest response if no chat history */}
+      {response && chatHistory.length === 0 && (
         <div className="response-panel">
           <ResponseContent content={response} />
         </div>

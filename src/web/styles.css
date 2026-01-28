@@ -170,6 +170,10 @@ body {
   background: var(--bg-primary);
   border-top: 1px solid var(--border-color);
   padding: 16px;
+  display: flex;
+  flex-direction: column;
+  max-height: 60vh; /* Make it more expandable */
+  overflow: hidden;
 }
 
 .query-buttons {
@@ -177,11 +181,13 @@ body {
   gap: 8px;
   margin-bottom: 12px;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .query-input-container {
   display: flex;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .query-input {
@@ -196,6 +202,83 @@ body {
 
 .query-input:focus {
   border-color: var(--primary-color);
+}
+
+/* Chat history */
+.chat-history {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 12px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  min-height: 200px;
+  max-height: 400px;
+}
+
+.chat-message {
+  margin-bottom: 16px;
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--bg-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.chat-message.user {
+  background: #e3f2fd;
+  margin-left: 20px;
+}
+
+.chat-message.assistant {
+  background: var(--bg-primary);
+  margin-right: 20px;
+}
+
+.chat-message-role {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 6px;
+  color: var(--text-secondary);
+}
+
+.chat-message.user .chat-message-role {
+  color: #1976d2;
+}
+
+.chat-message.assistant .chat-message-role {
+  color: var(--primary-color);
+}
+
+.chat-message-content {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.chat-message-content h2,
+.chat-message-content h3 {
+  margin-top: 8px;
+  margin-bottom: 6px;
+  font-size: 15px;
+}
+
+.chat-message-content h2:first-child,
+.chat-message-content h3:first-child {
+  margin-top: 0;
+}
+
+.chat-message-content ul,
+.chat-message-content ol {
+  padding-left: 20px;
+  margin: 6px 0;
+}
+
+.chat-message-content code {
+  background: var(--bg-tertiary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 13px;
 }
 
 /* Response panel */
@@ -337,6 +420,9 @@ body {
   background: #fff3cd;
   border-bottom: 1px solid #ffc107;
   font-size: 14px;
+  flex-shrink: 0;
+  margin-bottom: 12px;
+  border-radius: 6px;
 }
 
 .selection-info strong {

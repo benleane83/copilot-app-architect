@@ -23,6 +23,11 @@ interface GraphData {
   edges: Array<{ id: string; source: string; target: string; type: string }>;
 }
 
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 const API_BASE = '/api';
 
 export function DashboardPage() {
@@ -33,6 +38,8 @@ export function DashboardPage() {
   const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
   const [highlightedNodes, setHighlightedNodes] = useState<string[]>([]);
   const [response, setResponse] = useState<string | null>(null);
+  const [chatHistory, setChatHistory] = useState<Message[]>([]);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [showScanModal, setShowScanModal] = useState(false);
@@ -61,6 +68,8 @@ export function DashboardPage() {
       setSelectedNodes([]);
       setHighlightedNodes([]);
       setResponse(null);
+      setChatHistory([]); // Clear chat history when switching graphs
+      setSessionId(null);
     } catch (err) {
       console.error('Failed to load graph:', err);
       setError('Failed to load graph');
@@ -121,15 +130,26 @@ export function DashboardPage() {
     setIsLoading(true);
     setError(null);
     
+    // Add user message to chat history
+    const userMessage: Message = { role: 'user', content: question };
+    setChatHistory(prev => [...prev, userMessage]);
+    
     try {
+      const body: any = {
+        graphId: selectedGraphId,
+        question,
+        selectedNodes,
+      };
+      
+      // Only include sessionId if it's not null
+      if (sessionId) {
+        body.sessionId = sessionId;
+      }
+      
       const res = await fetch(`${API_BASE}/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          graphId: selectedGraphId,
-          question,
-          selectedNodes,
-        }),
+        body: JSON.stringify(body),
       });
       
       if (!res.ok) {
@@ -140,15 +160,26 @@ export function DashboardPage() {
       const data = await res.json();
       setResponse(data.answer);
       
+      // Add assistant message to chat history
+      const assistantMessage: Message = { role: 'assistant', content: data.answer };
+      setChatHistory(prev => [...prev, assistantMessage]);
+      
+      // Store session ID for follow-up questions
+      if (data.sessionId) {
+        setSessionId(data.sessionId);
+      }
+      
       if (data.relatedNodes && data.relatedNodes.length > 0) {
         setHighlightedNodes(data.relatedNodes);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to get answer');
+      // Remove the user message if the request failed
+      setChatHistory(prev => prev.slice(0, -1));
     } finally {
       setIsLoading(false);
     }
-  }, [selectedGraphId, selectedNodes]);
+  }, [selectedGraphId, selectedNodes, sessionId]);
 
   // Handle delete graph
   const handleDeleteGraph = useCallback(async (id: string) => {
@@ -281,6 +312,7 @@ export function DashboardPage() {
             response={response}
             isLoading={isLoading}
             graphId={selectedGraphId}
+            chatHistory={chatHistory}
           />
         </main>
       </div>
