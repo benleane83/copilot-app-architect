@@ -2,12 +2,20 @@
  * Graph storage - SQLite-based persistence for dependency graphs
  */
 import Database from 'better-sqlite3';
+import fs from 'fs';
+import path from 'path';
 import type { DependencyGraph } from '../types.js';
 
 export class GraphStorage {
   private db: Database.Database;
 
   constructor(dbPath: string = './data/graphs.sqlite') {
+    // Ensure the parent directory exists
+    const dir = path.dirname(dbPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
     this.db = new Database(dbPath);
     this.initialize();
   }

@@ -230,7 +230,7 @@ export class GraphAnalyzer {
 
     return {
       cycles,
-      severity: cycles.length > 0 ? 'warning' : 'error',
+      severity: cycles.length > 0 ? 'error' : 'warning',
     };
   }
 

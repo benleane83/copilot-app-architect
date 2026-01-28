@@ -20,7 +20,8 @@ export async function parsePackageJson(fileContent: string): Promise<ParsedDepen
   let pkg: PackageJson;
   try {
     pkg = JSON.parse(fileContent);
-  } catch {
+  } catch (error) {
+    console.warn('Failed to parse package.json:', error instanceof Error ? error.message : 'Unknown error');
     return dependencies;
   }
 

@@ -59,7 +59,8 @@ export async function parseKubernetes(fileContent: string): Promise<ParsedDepend
         resources.push(doc as K8sResource);
       }
     });
-  } catch {
+  } catch (error) {
+    console.warn('Failed to parse Kubernetes YAML:', error instanceof Error ? error.message : 'Unknown error');
     return dependencies;
   }
 

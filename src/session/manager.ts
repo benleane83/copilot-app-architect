@@ -21,6 +21,14 @@ export interface ConversationMessage {
 export class SessionManager {
   private sessions: Map<string, UserSession> = new Map();
   private readonly sessionTimeout = 30 * 60 * 1000; // 30 minutes
+  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
+
+  constructor() {
+    // Start periodic cleanup every 5 minutes
+    this.cleanupInterval = setInterval(() => {
+      this.cleanup();
+    }, 5 * 60 * 1000);
+  }
 
   /**
    * Create a new session
@@ -153,6 +161,16 @@ export class SessionManager {
    */
   getActiveSessionCount(): number {
     return this.sessions.size;
+  }
+
+  /**
+   * Stop the cleanup interval (for graceful shutdown)
+   */
+  shutdown(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
   }
 }
 

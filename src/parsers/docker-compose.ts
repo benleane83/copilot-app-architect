@@ -29,8 +29,9 @@ export async function parseDockerCompose(fileContent: string): Promise<ParsedDep
   let compose: DockerComposeFile;
   try {
     compose = yaml.load(fileContent) as DockerComposeFile;
-  } catch {
-    // Invalid YAML
+  } catch (error) {
+    // Invalid YAML - log for debugging
+    console.warn('Failed to parse Docker Compose YAML:', error instanceof Error ? error.message : 'Unknown error');
     return dependencies;
   }
 

@@ -175,8 +175,9 @@ export function GraphCanvas({
 
     return () => {
       cy.destroy();
+      cyRef.current = null;
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [onNodeSelect, onNodeClick]);
 
   // Update graph data
   useEffect(() => {
