@@ -34,11 +34,11 @@ export const getGraphDataTool = {
 /**
  * Handler for the get graph data tool
  */
-export function getGraphDataHandler(
+export async function getGraphDataHandler(
   input: GetGraphDataInput,
-  getGraph: (id: string) => DependencyGraph | null
-): GraphDataResult | { error: string } {
-  const graph = getGraph(input.graphId);
+  getGraph: (id: string) => Promise<DependencyGraph | null>
+): Promise<GraphDataResult | { error: string }> {
+  const graph = await getGraph(input.graphId);
   
   if (!graph) {
     return { error: `Graph not found: ${input.graphId}` };

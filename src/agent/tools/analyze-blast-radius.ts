@@ -21,11 +21,11 @@ export const analyzeBlastRadiusTool = {
 /**
  * Handler for the analyze blast radius tool
  */
-export function analyzeBlastRadiusHandler(
+export async function analyzeBlastRadiusHandler(
   input: AnalyzeBlastRadiusInput,
-  getGraph: (id: string) => DependencyGraph | null
-): BlastRadiusResult | { error: string } {
-  const graph = getGraph(input.graphId);
+  getGraph: (id: string) => Promise<DependencyGraph | null>
+): Promise<BlastRadiusResult | { error: string }> {
+  const graph = await getGraph(input.graphId);
   
   if (!graph) {
     return { error: `Graph not found: ${input.graphId}` };

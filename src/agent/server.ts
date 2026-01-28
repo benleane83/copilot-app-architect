@@ -28,9 +28,9 @@ export interface AgentResponse {
 }
 
 export class AgentService {
-  private graphGetter: (id: string) => DependencyGraph | null;
+  private graphGetter: (id: string) => Promise<DependencyGraph | null>;
 
-  constructor(graphGetter: (id: string) => DependencyGraph | null) {
+  constructor(graphGetter: (id: string) => Promise<DependencyGraph | null>) {
     this.graphGetter = graphGetter;
   }
 
@@ -42,7 +42,7 @@ export class AgentService {
     graphId: string,
     selectedNodes?: string[]
   ): Promise<AgentResponse> {
-    const graph = this.graphGetter(graphId);
+    const graph = await this.graphGetter(graphId);
     if (!graph) {
       return {
         answer: `Error: Graph not found with ID: ${graphId}`,
@@ -63,7 +63,7 @@ export class AgentService {
       
       if (nodeId) {
         const input: AnalyzeBlastRadiusInput = { nodeId, graphId };
-        const result = analyzeBlastRadiusHandler(input, this.graphGetter);
+        const result = await analyzeBlastRadiusHandler(input, this.graphGetter);
         toolsUsed.push('analyze_blast_radius');
 
         if ('error' in result) {
@@ -84,7 +84,7 @@ export class AgentService {
 
       if (nodeIds.length >= 2) {
         const input: ExplainCouplingInput = { nodeIds, graphId };
-        const result = explainCouplingHandler(input, this.graphGetter);
+        const result = await explainCouplingHandler(input, this.graphGetter);
         toolsUsed.push('explain_coupling');
 
         if ('error' in result) {
@@ -103,7 +103,7 @@ export class AgentService {
         includeNodes: true,
         includeEdges: false 
       };
-      const result = getGraphDataHandler(input, this.graphGetter);
+      const result = await getGraphDataHandler(input, this.graphGetter);
       toolsUsed.push('get_graph_data');
 
       if ('error' in result) {

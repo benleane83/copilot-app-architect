@@ -51,8 +51,8 @@ function getStorage(): GraphStorage {
 /**
  * Get graph by ID (for agent service)
  */
-function getGraph(id: string): DependencyGraph | null {
-  return getStorage().loadGraph(id);
+async function getGraph(id: string): Promise<DependencyGraph | null> {
+  return await getStorage().loadGraph(id);
 }
 
 /**
@@ -110,7 +110,7 @@ export function createRouter(): Router {
         sourcePath,
       });
 
-      getStorage().saveGraph(graph);
+      await getStorage().saveGraph(graph);
 
       res.json({
         success: true,
@@ -135,9 +135,9 @@ export function createRouter(): Router {
   /**
    * GET /api/graphs - List all cached graphs
    */
-  router.get('/graphs', (_req: Request, res: Response) => {
+  router.get('/graphs', async (_req: Request, res: Response) => {
     try {
-      const graphs = getStorage().listGraphs();
+      const graphs = await getStorage().listGraphs();
       res.json({ graphs });
     } catch (error) {
       console.error('List graphs error:', error);
@@ -148,9 +148,9 @@ export function createRouter(): Router {
   /**
    * GET /api/graphs/:id - Get a specific graph
    */
-  router.get('/graphs/:id', (req: Request, res: Response) => {
+  router.get('/graphs/:id', async (req: Request, res: Response) => {
     try {
-      const graph = getStorage().loadGraph(req.params.id);
+      const graph = await getStorage().loadGraph(req.params.id);
       
       if (!graph) {
         res.status(404).json({ error: 'Graph not found' });
@@ -167,9 +167,9 @@ export function createRouter(): Router {
   /**
    * DELETE /api/graphs/:id - Delete a graph
    */
-  router.delete('/graphs/:id', (req: Request, res: Response) => {
+  router.delete('/graphs/:id', async (req: Request, res: Response) => {
     try {
-      const deleted = getStorage().deleteGraph(req.params.id);
+      const deleted = await getStorage().deleteGraph(req.params.id);
       
       if (!deleted) {
         res.status(404).json({ error: 'Graph not found' });
@@ -234,9 +234,9 @@ export function createRouter(): Router {
   /**
    * GET /api/graphs/:id/analyze - Get graph analysis/statistics
    */
-  router.get('/graphs/:id/analyze', (req: Request, res: Response) => {
+  router.get('/graphs/:id/analyze', async (req: Request, res: Response) => {
     try {
-      const graph = getStorage().loadGraph(req.params.id);
+      const graph = await getStorage().loadGraph(req.params.id);
       
       if (!graph) {
         res.status(404).json({ error: 'Graph not found' });
@@ -260,10 +260,10 @@ export function createRouter(): Router {
   /**
    * POST /api/graphs/:id/blast-radius - Calculate blast radius for a node
    */
-  router.post('/graphs/:id/blast-radius', (req: Request, res: Response) => {
+  router.post('/graphs/:id/blast-radius', async (req: Request, res: Response) => {
     try {
       const { nodeId } = z.object({ nodeId: z.string() }).parse(req.body);
-      const graph = getStorage().loadGraph(req.params.id);
+      const graph = await getStorage().loadGraph(req.params.id);
       
       if (!graph) {
         res.status(404).json({ error: 'Graph not found' });

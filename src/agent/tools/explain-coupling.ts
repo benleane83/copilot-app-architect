@@ -21,11 +21,11 @@ export const explainCouplingTool = {
 /**
  * Handler for the explain coupling tool
  */
-export function explainCouplingHandler(
+export async function explainCouplingHandler(
   input: ExplainCouplingInput,
-  getGraph: (id: string) => DependencyGraph | null
-): CouplingResult | { error: string } {
-  const graph = getGraph(input.graphId);
+  getGraph: (id: string) => Promise<DependencyGraph | null>
+): Promise<CouplingResult | { error: string }> {
+  const graph = await getGraph(input.graphId);
   
   if (!graph) {
     return { error: `Graph not found: ${input.graphId}` };

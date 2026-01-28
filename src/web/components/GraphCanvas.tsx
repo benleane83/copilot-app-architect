@@ -1,7 +1,7 @@
 /**
  * Graph Canvas component - Cytoscape.js visualization
  */
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import cytoscape, { Core, NodeSingular } from 'cytoscape';
 
 interface GraphNode {
@@ -65,14 +65,22 @@ export function GraphCanvas({
   selectedNodes,
   highlightedNodes = [],
   onNodeSelect,
-  onNodeClick,
 }: GraphCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Initialize Cytoscape
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current) {
+      console.log('Container ref not ready');
+      return;
+    }
+
+    console.log('Initializing Cytoscape, container dimensions:', {
+      width: containerRef.current.offsetWidth,
+      height: containerRef.current.offsetHeight
+    });
 
     const cy = cytoscape({
       container: containerRef.current,
@@ -145,22 +153,16 @@ export function GraphCanvas({
       const nodeId = node.id();
       
       if (evt.originalEvent.ctrlKey || evt.originalEvent.metaKey) {
-        // Multi-select
-        if (selectedNodes.includes(nodeId)) {
-          onNodeSelect(selectedNodes.filter(id => id !== nodeId));
+        // Multi-select - get current selection from Cytoscape
+        const currentlySelected = cy.nodes(':selected').map(n => n.id());
+        if (currentlySelected.includes(nodeId)) {
+          onNodeSelect(currentlySelected.filter(id => id !== nodeId));
         } else {
-          onNodeSelect([...selectedNodes, nodeId]);
+          onNodeSelect([...currentlySelected, nodeId]);
         }
       } else {
         // Single select
         onNodeSelect([nodeId]);
-        if (onNodeClick) {
-          onNodeClick({
-            id: node.data('id'),
-            name: node.data('name'),
-            type: node.data('type'),
-          });
-        }
       }
     });
 
@@ -172,17 +174,31 @@ export function GraphCanvas({
     });
 
     cyRef.current = cy;
+    setIsInitialized(true);
+    console.log('Cytoscape initialized successfully');
 
     return () => {
+      setIsInitialized(false);
       cy.destroy();
       cyRef.current = null;
+      console.log('Cytoscape destroyed');
     };
-  }, [onNodeSelect, onNodeClick]);
+  }, []); // Only initialize once
 
   // Update graph data
   useEffect(() => {
     const cy = cyRef.current;
-    if (!cy || !graph) return;
+    if (!cy || !graph || !isInitialized) {
+      console.log('Graph update skipped:', { hasCy: !!cy, hasGraph: !!graph, isInitialized });
+      return;
+    }
+
+    console.log('Updating graph data:', { 
+      nodes: graph.nodes.length, 
+      edges: graph.edges.length,
+      sampleNode: graph.nodes[0],
+      sampleEdge: graph.edges[0]
+    });
 
     cy.elements().remove();
 
@@ -207,6 +223,13 @@ export function GraphCanvas({
 
     cy.add([...nodeElements, ...edgeElements]);
 
+    console.log('Added elements to Cytoscape:', {
+      nodeElements: nodeElements.length,
+      edgeElements: edgeElements.length,
+      cyNodeCount: cy.nodes().length,
+      cyEdgeCount: cy.edges().length
+    });
+
     // Run layout
     cy.layout({
       name: 'cose',
@@ -219,7 +242,7 @@ export function GraphCanvas({
     }).run();
 
     cy.fit(undefined, 50);
-  }, [graph]);
+  }, [graph, isInitialized]);
 
   // Update selection
   useEffect(() => {
@@ -271,49 +294,51 @@ export function GraphCanvas({
     }
   }, []);
 
-  if (!graph) {
-    return (
-      <div className="graph-empty">
-        <h3>No Graph Selected</h3>
-        <p>Select a graph from the sidebar or scan a new repository to get started.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="graph-canvas-container">
-      <div ref={containerRef} className="graph-canvas" />
+      <div ref={containerRef} className="graph-canvas" style={{ display: graph ? 'block' : 'none' }} />
       
-      {/* Zoom controls */}
-      <div style={{ position: 'absolute', top: 12, left: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <button className="btn btn-secondary btn-small" onClick={handleZoomIn}>+</button>
-        <button className="btn btn-secondary btn-small" onClick={handleZoomOut}>−</button>
-        <button className="btn btn-secondary btn-small" onClick={handleFit}>Fit</button>
-      </div>
+      {!graph && (
+        <div className="graph-empty">
+          <h3>No Graph Selected</h3>
+          <p>Select a graph from the sidebar or scan a new repository to get started.</p>
+        </div>
+      )}
+      
+      {graph && (
+        <>
+          {/* Zoom controls */}
+          <div style={{ position: 'absolute', top: 12, left: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <button className="btn btn-secondary btn-small" onClick={handleZoomIn}>+</button>
+            <button className="btn btn-secondary btn-small" onClick={handleZoomOut}>−</button>
+            <button className="btn btn-secondary btn-small" onClick={handleFit}>Fit</button>
+          </div>
 
-      {/* Legend */}
-      <div className="graph-legend">
-        <div className="legend-item">
-          <div className="legend-color" style={{ background: nodeColors.service }} />
-          <span>Service</span>
-        </div>
-        <div className="legend-item">
-          <div className="legend-color" style={{ background: nodeColors.database }} />
-          <span>Database</span>
-        </div>
-        <div className="legend-item">
-          <div className="legend-color" style={{ background: nodeColors.docker_service }} />
-          <span>Docker</span>
-        </div>
-        <div className="legend-item">
-          <div className="legend-color" style={{ background: nodeColors.k8s_deployment }} />
-          <span>Kubernetes</span>
-        </div>
-        <div className="legend-item">
-          <div className="legend-color" style={{ background: nodeColors.npm_package }} />
-          <span>NPM Package</span>
-        </div>
-      </div>
+          {/* Legend */}
+          <div className="graph-legend">
+            <div className="legend-item">
+              <div className="legend-color" style={{ background: nodeColors.service }} />
+              <span>Service</span>
+            </div>
+            <div className="legend-item">
+              <div className="legend-color" style={{ background: nodeColors.database }} />
+              <span>Database</span>
+            </div>
+            <div className="legend-item">
+              <div className="legend-color" style={{ background: nodeColors.docker_service }} />
+              <span>Docker</span>
+            </div>
+            <div className="legend-item">
+              <div className="legend-color" style={{ background: nodeColors.k8s_deployment }} />
+              <span>Kubernetes</span>
+            </div>
+            <div className="legend-item">
+              <div className="legend-color" style={{ background: nodeColors.npm_package }} />
+              <span>NPM Package</span>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
