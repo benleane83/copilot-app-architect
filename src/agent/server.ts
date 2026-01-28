@@ -1,8 +1,8 @@
 /**
- * Agent service - handles AI-powered analysis using custom tools
- * Note: This is a simplified implementation that processes tools locally
- * In production, you would integrate with @github/copilot-sdk or similar
+ * Agent service - handles AI-powered analysis using GitHub Copilot SDK
  */
+import { CopilotClient, CopilotSession, defineTool } from '@github/copilot-sdk';
+import { z } from 'zod';
 import { 
   analyzeBlastRadiusHandler, 
   formatBlastRadiusResult,
@@ -25,23 +25,151 @@ export interface AgentResponse {
   answer: string;
   toolsUsed: string[];
   relatedNodes?: string[];
+  sessionId?: string;
 }
 
 export class AgentService {
   private graphGetter: (id: string) => Promise<DependencyGraph | null>;
+  private copilotClient: CopilotClient | null = null;
+  private sessions: Map<string, CopilotSession> = new Map();
 
   constructor(graphGetter: (id: string) => Promise<DependencyGraph | null>) {
     this.graphGetter = graphGetter;
   }
 
   /**
-   * Process a user question about the graph
+   * Initialize the Copilot SDK client
+   */
+  async initialize(): Promise<void> {
+    if (!this.copilotClient) {
+      this.copilotClient = new CopilotClient({ logLevel: 'error' });
+      await this.copilotClient.start();
+    }
+  }
+
+  /**
+   * Shutdown the agent service
+   */
+  async shutdown(): Promise<void> {
+    // Cleanup all sessions
+    for (const [sessionId, session] of this.sessions) {
+      try {
+        await session.destroy();
+      } catch (err) {
+        console.error(`Failed to destroy session ${sessionId}:`, err);
+      }
+    }
+    this.sessions.clear();
+
+    // Stop SDK client
+    if (this.copilotClient) {
+      await this.copilotClient.stop();
+      this.copilotClient = null;
+    }
+  }
+
+  /**
+   * Create tools that the Copilot agent can use
+   */
+  private createTools(graphId: string, graph: DependencyGraph, selectedNodes?: string[]) {
+    // Tool: Analyze blast radius
+    const analyzeBlastRadius = defineTool('analyze_blast_radius', {
+      description: 'Analyze the impact/blast radius if a service fails. Shows what services would be affected.',
+      parameters: {
+        type: 'object',
+        properties: {
+          nodeId: { type: 'string', description: 'The ID of the service/node to analyze' },
+        },
+        required: ['nodeId'],
+      },
+      handler: async (args: { nodeId: string }) => {
+        const { nodeId } = args;
+        const input: AnalyzeBlastRadiusInput = { nodeId, graphId };
+        const result = await analyzeBlastRadiusHandler(input, this.graphGetter);
+        if ('error' in result) {
+          return { error: result.error };
+        }
+        return {
+          targetNode: result.targetNode,
+          affectedNodes: result.affectedNodes,
+          impactLevel: result.impactLevel,
+          formatted: formatBlastRadiusResult(result),
+        };
+      },
+    });
+
+    // Tool: Explain coupling
+    const explainCoupling = defineTool('explain_coupling', {
+      description: 'Explain why multiple services are coupled together. Shows shared dependencies and relationships.',
+      parameters: {
+        type: 'object',
+        properties: {
+          nodeIds: { 
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Array of node IDs to analyze coupling between',
+          },
+        },
+        required: ['nodeIds'],
+      },
+      handler: async (args: { nodeIds: string[] }) => {
+        const { nodeIds } = args;
+        const input: ExplainCouplingInput = { nodeIds, graphId };
+        const result = await explainCouplingHandler(input, this.graphGetter);
+        if ('error' in result) {
+          return { error: result.error };
+        }
+        return {
+          nodes: result.nodes,
+          sharedDependencies: result.sharedDependencies,
+          formatted: formatCouplingResult(result),
+        };
+      },
+    });
+
+    // Tool: Get graph data
+    const getGraphData = defineTool('get_graph_data', {
+      description: 'Get information about the dependency graph, including nodes, edges, and statistics.',
+      parameters: {
+        type: 'object',
+        properties: {
+          includeNodes: { type: 'boolean', description: 'Include node details' },
+          includeEdges: { type: 'boolean', description: 'Include edge details' },
+        },
+      },
+      handler: async (args: { includeNodes?: boolean; includeEdges?: boolean }) => {
+        const { includeNodes = true, includeEdges = false } = args;
+        const input: GetGraphDataInput = { graphId, includeNodes, includeEdges };
+        const result = await getGraphDataHandler(input, this.graphGetter);
+        if ('error' in result) {
+          return { error: result.error };
+        }
+        return {
+          id: result.id,
+          name: result.name,
+          nodeCount: result.nodeCount,
+          edgeCount: result.edgeCount,
+          nodes: result.nodes,
+          edges: result.edges,
+          formatted: formatGraphDataResult(result),
+        };
+      },
+    });
+
+    return [analyzeBlastRadius, explainCoupling, getGraphData];
+  }
+
+  /**
+   * Process a user question using Copilot SDK
    */
   async processQuestion(
     question: string,
     graphId: string,
-    selectedNodes?: string[]
+    selectedNodes?: string[],
+    sessionId?: string
   ): Promise<AgentResponse> {
+    await this.initialize();
+
     const graph = await this.graphGetter(graphId);
     if (!graph) {
       return {
@@ -50,189 +178,90 @@ export class AgentService {
       };
     }
 
-    const toolsUsed: string[] = [];
-    let answer = '';
-    const relatedNodes: string[] = [];
-
-    // Analyze the question to determine which tool to use
-    const questionLower = question.toLowerCase();
-
-    if (this.isBlastRadiusQuestion(questionLower)) {
-      // Use analyze_blast_radius tool
-      const nodeId = selectedNodes?.[0] || this.extractNodeFromQuestion(question, graph);
-      
-      if (nodeId) {
-        const input: AnalyzeBlastRadiusInput = { nodeId, graphId };
-        const result = await analyzeBlastRadiusHandler(input, this.graphGetter);
-        toolsUsed.push('analyze_blast_radius');
-
-        if ('error' in result) {
-          answer = `Error: ${result.error}`;
-        } else {
-          answer = formatBlastRadiusResult(result);
-          relatedNodes.push(...result.affectedNodes.map(n => n.id));
-          answer += this.addRecommendations(result);
-        }
-      } else {
-        answer = 'Please select a service or specify which service you want to analyze.';
-      }
-    } else if (this.isCouplingQuestion(questionLower)) {
-      // Use explain_coupling tool
-      const nodeIds = selectedNodes && selectedNodes.length >= 2 
-        ? selectedNodes 
-        : this.extractNodesFromQuestion(question, graph);
-
-      if (nodeIds.length >= 2) {
-        const input: ExplainCouplingInput = { nodeIds, graphId };
-        const result = await explainCouplingHandler(input, this.graphGetter);
-        toolsUsed.push('explain_coupling');
-
-        if ('error' in result) {
-          answer = `Error: ${result.error}`;
-        } else {
-          answer = formatCouplingResult(result);
-          relatedNodes.push(...result.sharedDependencies.map(n => n.id));
-        }
-      } else {
-        answer = 'Please select at least two services to analyze their coupling.';
-      }
-    } else if (this.isGraphInfoQuestion(questionLower)) {
-      // Use get_graph_data tool
-      const input: GetGraphDataInput = { 
-        graphId, 
-        includeNodes: true,
-        includeEdges: false 
+    if (!this.copilotClient) {
+      return {
+        answer: 'Error: Copilot client not initialized',
+        toolsUsed: [],
       };
-      const result = await getGraphDataHandler(input, this.graphGetter);
-      toolsUsed.push('get_graph_data');
+    }
 
-      if ('error' in result) {
-        answer = `Error: ${result.error}`;
-      } else {
-        answer = formatGraphDataResult(result);
-      }
+    // Get or create session
+    let session: CopilotSession;
+    if (sessionId && this.sessions.has(sessionId)) {
+      session = this.sessions.get(sessionId)!;
     } else {
-      // General question - provide overview
-      answer = getGraphContextMessage(graph.name, graph.nodes.length, graph.edges.length);
-      answer += '\n\n' + this.getAvailableActions();
+      // Create tools
+      const tools = this.createTools(graphId, graph, selectedNodes);
+
+      // Build context for system message
+      const selectedNodesContext = selectedNodes && selectedNodes.length > 0
+        ? `\n\nCurrently selected nodes: ${selectedNodes.join(', ')}`
+        : '';
+
+      const graphContext = `
+You are analyzing the "${graph.name}" dependency graph which contains:
+- ${graph.nodes.length} services/nodes
+- ${graph.edges.length} dependencies/edges
+
+Available nodes: ${graph.nodes.map(n => `${n.name} (${n.type})`).join(', ')}${selectedNodesContext}
+`;
+
+      // Create new session
+      session = await this.copilotClient.createSession({
+        sessionId: sessionId || `graph-${graphId}-${Date.now()}`,
+        model: 'gpt-4.1',
+        tools,
+        systemMessage: {
+          content: systemMessage.content + '\n\n' + graphContext,
+        },
+      });
+
+      this.sessions.set(session.sessionId, session);
     }
 
-    return { answer, toolsUsed, relatedNodes };
-  }
+    // Track tools used and related nodes
+    const toolsUsed: Set<string> = new Set();
+    const relatedNodes: Set<string> = new Set();
 
-  /**
-   * Check if the question is about blast radius / failure impact
-   */
-  private isBlastRadiusQuestion(question: string): boolean {
-    const patterns = [
-      'what breaks',
-      'what fails',
-      'what happens if',
-      'blast radius',
-      'impact',
-      'affected',
-      'down',
-      'failure',
-      'depends on',
-      'downstream',
-    ];
-    return patterns.some(p => question.includes(p));
-  }
-
-  /**
-   * Check if the question is about coupling
-   */
-  private isCouplingQuestion(question: string): boolean {
-    const patterns = [
-      'coupled',
-      'coupling',
-      'why are',
-      'connected',
-      'related',
-      'shared',
-      'common',
-      'between',
-    ];
-    return patterns.some(p => question.includes(p));
-  }
-
-  /**
-   * Check if the question is about graph info
-   */
-  private isGraphInfoQuestion(question: string): boolean {
-    const patterns = [
-      'overview',
-      'summary',
-      'statistics',
-      'how many',
-      'list',
-      'show all',
-      'what services',
-    ];
-    return patterns.some(p => question.includes(p));
-  }
-
-  /**
-   * Extract a node ID from the question text
-   */
-  private extractNodeFromQuestion(question: string, graph: DependencyGraph): string | null {
-    // Look for node names in the question
-    for (const node of graph.nodes) {
-      if (question.toLowerCase().includes(node.name.toLowerCase()) ||
-          question.toLowerCase().includes(node.id.toLowerCase())) {
-        return node.id;
+    // Listen for tool executions
+    session.on((event) => {
+      if (event.type === 'tool.execution_start') {
+        toolsUsed.add(event.data.toolName);
       }
+    });
+
+    // Send question and wait for response
+    const response = await session.sendAndWait({ prompt: question });
+
+    if (!response) {
+      return {
+        answer: 'No response received from Copilot',
+        toolsUsed: Array.from(toolsUsed),
+        sessionId: session.sessionId,
+      };
     }
-    return null;
+
+    // Extract related nodes from tool results if available
+    // This is a simplified approach - you might want to parse the response content
+    // or track tool results more explicitly
+
+    return {
+      answer: response.data.content,
+      toolsUsed: Array.from(toolsUsed),
+      relatedNodes: Array.from(relatedNodes),
+      sessionId: session.sessionId,
+    };
   }
 
   /**
-   * Extract multiple node IDs from the question text
+   * Clean up a specific session
    */
-  private extractNodesFromQuestion(question: string, graph: DependencyGraph): string[] {
-    const found: string[] = [];
-    for (const node of graph.nodes) {
-      if (question.toLowerCase().includes(node.name.toLowerCase()) ||
-          question.toLowerCase().includes(node.id.toLowerCase())) {
-        found.push(node.id);
-      }
+  async destroySession(sessionId: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      await session.destroy();
+      this.sessions.delete(sessionId);
     }
-    return found;
   }
 
-  /**
-   * Add recommendations based on blast radius result
-   */
-  private addRecommendations(result: BlastRadiusResult): string {
-    const lines: string[] = ['', '### Recommendations'];
-
-    if (result.impactLevel === 'critical' || result.impactLevel === 'high') {
-      lines.push('- ⚠️ This is a critical dependency - consider adding redundancy');
-      lines.push('- Consider implementing circuit breakers for dependent services');
-      lines.push('- Ensure monitoring and alerting are in place');
-    }
-
-    if (result.affectedNodes.length > 5) {
-      lines.push('- Consider breaking down this service to reduce blast radius');
-    }
-
-    return lines.join('\n');
-  }
-
-  /**
-   * Get available actions text
-   */
-  private getAvailableActions(): string {
-    return `**Available Actions:**
-- Ask "What breaks if [service] is down?" to analyze failure impact
-- Select multiple services and ask "Why are these coupled?" to understand dependencies
-- Ask "Show overview" to see graph statistics`;
-  }
-
-  /**
-   * Get system message for context
-   */
-  getSystemMessage() {
-    return systemMessage;
-  }
 }
