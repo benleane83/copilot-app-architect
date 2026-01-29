@@ -66,6 +66,15 @@ function getAgentService(): AgentService {
 }
 
 /**
+ * Shutdown handler for cleanup
+ */
+export async function shutdown(): Promise<void> {
+  if (agentService) {
+    await agentService.shutdown();
+  }
+}
+
+/**
  * Create API router
  */
 export function createRouter(): Router {
@@ -189,36 +198,21 @@ export function createRouter(): Router {
   router.post('/ask', async (req: Request, res: Response) => {
     try {
       const body = askRequestSchema.parse(req.body);
-      
-      // Get or create session
-      const userId = req.headers['x-user-id'] as string || uuidv4();
-      let session;
-      
-      if (body.sessionId) {
-        session = sessionManager.getSession(body.sessionId);
-      }
-      
-      if (!session) {
-        session = sessionManager.createSession(userId, body.graphId);
-      }
 
-      // Process the question
+      // Process the question using Copilot SDK
       const agent = getAgentService();
       const response = await agent.processQuestion(
         body.question,
         body.graphId,
         body.selectedNodes,
+<<<<<<< HEAD
         session.id
+=======
+        body.sessionId
+>>>>>>> b07eb46654c1c3e18e200e524692af297f452941
       );
 
-      // Save to session history
-      sessionManager.addMessage(session.id, 'user', body.question);
-      sessionManager.addMessage(session.id, 'assistant', response.answer);
-
-      res.json({
-        ...response,
-        sessionId: session.id,
-      });
+      res.json(response);
     } catch (error) {
       console.error('Ask error:', error);
       if (error instanceof z.ZodError) {

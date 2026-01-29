@@ -69,6 +69,7 @@ export function GraphCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const selectedNodesRef = useRef<string[]>(selectedNodes);
 
   // Initialize Cytoscape
   useEffect(() => {
@@ -153,8 +154,8 @@ export function GraphCanvas({
       const nodeId = node.id();
       
       if (evt.originalEvent.ctrlKey || evt.originalEvent.metaKey) {
-        // Multi-select - get current selection from Cytoscape
-        const currentlySelected = cy.nodes(':selected').map(n => n.id());
+        // Multi-select - use ref to get current selection state to avoid race conditions
+        const currentlySelected = selectedNodesRef.current;
         if (currentlySelected.includes(nodeId)) {
           onNodeSelect(currentlySelected.filter(id => id !== nodeId));
         } else {
@@ -249,6 +250,7 @@ export function GraphCanvas({
     const cy = cyRef.current;
     if (!cy) return;
 
+    selectedNodesRef.current = selectedNodes;
     cy.nodes().unselect();
     selectedNodes.forEach(id => {
       cy.$id(id).select();
