@@ -207,7 +207,8 @@ export function createRouter(): Router {
       const response = await agent.processQuestion(
         body.question,
         body.graphId,
-        body.selectedNodes
+        body.selectedNodes,
+        session.id
       );
 
       // Save to session history

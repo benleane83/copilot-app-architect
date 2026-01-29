@@ -33,6 +33,7 @@ export function DashboardPage() {
   const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
   const [highlightedNodes, setHighlightedNodes] = useState<string[]>([]);
   const [response, setResponse] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [showScanModal, setShowScanModal] = useState(false);
@@ -61,6 +62,7 @@ export function DashboardPage() {
       setSelectedNodes([]);
       setHighlightedNodes([]);
       setResponse(null);
+      setSessionId(null);
     } catch (err) {
       console.error('Failed to load graph:', err);
       setError('Failed to load graph');
@@ -129,6 +131,7 @@ export function DashboardPage() {
           graphId: selectedGraphId,
           question,
           selectedNodes,
+          sessionId: sessionId ?? undefined,
         }),
       });
       
@@ -139,6 +142,9 @@ export function DashboardPage() {
       
       const data = await res.json();
       setResponse(data.answer);
+      if (data.sessionId) {
+        setSessionId(data.sessionId);
+      }
       
       if (data.relatedNodes && data.relatedNodes.length > 0) {
         setHighlightedNodes(data.relatedNodes);

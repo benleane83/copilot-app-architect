@@ -25,7 +25,9 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@github/copilot-sdk": "^0.1.19",
     "@octokit/rest": "^20.0.2",
+    "dotenv": "^16.4.7",
     "sql.js": "^1.10.3",
     "cors": "^2.8.5",
     "cytoscape": "^3.28.1",
